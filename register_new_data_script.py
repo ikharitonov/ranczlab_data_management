@@ -21,10 +21,10 @@ def read_local_reference_csv(path):
     return pd.read_csv(path/'db_conf.csv')
 
 def parse_recording_folder_name(path):
-    animal_id = path.split('/')[-1].split('_')[0]
-    date, time = path.split('/')[-1].split('_')[-1].split('T')
+    animal_id = path.parts[-1].split('_')[0]
+    date, time = path.parts[-1].split('_')[-1].split('T')
     time = time[:6]
-    time = f'{time[0:2]}-{time[2:4]}-{time[4:]}'
+    time = f'{time[0:2]}:{time[2:4]}:{time[4:]}'
     return animal_id, date, time
 
 data_directory = Path.home() / 'RANCZLAB-NAS/data/onix'
@@ -48,14 +48,14 @@ for folder in os.listdir(data_directory):
     else:
         local_referenced_folders.append(data_directory/folder)
 
-print(f"Scanned {data_directory} data directory. Found {len(local_referenced_folders)} SQL database referenced and {len(local_unreferenced_folders)} non-referenced folders.")
+print(f"Scanned '{data_directory}' data directory. Found {len(local_referenced_folders)} SQL database referenced and {len(local_unreferenced_folders)} non-referenced folders.")
 if ask_yes_no('List them?'):
     print('Referenced folders:')
     print(*local_referenced_folders,sep='\n')
     print('Unreferenced folders:')
     print(*local_unreferenced_folders,sep='\n')
 
-if ask_yes_no('Check if all locally referenced folders exist in the database?'):
+if ask_yes_no('\nCheck if all locally referenced folders exist in the database?'):
     db_df = get_npx_data_table(hostname, user, pwd)
     db_referenced_folders = []
     db_unreferenced_folders = []
@@ -82,10 +82,14 @@ if ask_yes_no('Check if all locally referenced folders exist in the database?'):
         print('Recordings with possible duplicate reference:')
         print(*db_problem_folders,sep='\n')
 
-if ask_yes_no('Add local unreferenced recordings to the SQL database?'):
+if ask_yes_no('\nAdd local unreferenced recordings to the SQL database?'):
     # Get the last recording_id from the database
     db_df = get_npx_data_table(hostname, user, pwd)
-    last_recording_id = np.sort(db_df['recording_id'].unique())[-1]
+    all_recording_ids = np.sort(db_df['recording_id'].unique())
+    if len(all_recording_ids)==0:
+        last_recording_id = -1
+    else:
+        last_recording_id = all_recording_ids[-1]
 
     query_values = []
 
@@ -98,6 +102,8 @@ if ask_yes_no('Add local unreferenced recordings to the SQL database?'):
         condition_info = 'test data' # DEFINE AFTER ADOPTING FOLDER NAMING CONVENTION
         transferred_to_NAS = 0
         query_values.append((last_recording_id, animal_id, date, time, condition_id, condition_info, transferred_to_NAS))
+        local_recording_df = pd.DataFrame([{'recording_id':last_recording_id, 'animal_id':animal_id, 'date':date, 'time':time, 'condition_id':condition_id, 'condition_info':condition_info, 'transferred_to_NAS':transferred_to_NAS}])
+        local_recording_df.to_csv(folder_path/'db_conf.csv')
     
     # Make the query to SQL
     add_recordings_to_database(hostname, user, pwd, query_values)
