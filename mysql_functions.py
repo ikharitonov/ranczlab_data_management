@@ -85,7 +85,7 @@ def check_local_remote_consistency(hostname, user, pwd, local_referenced_folders
             else:
                 db_problem_folders.append(folder_path)
 
-        print(f"Checked consistency of locally referenced data folders (recordings) with the SQL database. Found {len(db_referenced_folders)} recordings referenced both locally and in the database; {len(db_unreferenced_folders)} referenced locally but not in the database; {len(db_problem_folders)} recordings with potential duplicate references in the database.")
+        print(f"Checked consistency of locally referenced data folders (recordings) with the SQL database. Found: \n{len(db_referenced_folders)} recordings referenced both locally and in the database; \n{len(db_unreferenced_folders)} referenced locally but not in the database; \n{len(db_problem_folders)} recordings with potential duplicate references in the database.")
 
         if ask_yes_no('List them?'):
             print('Recordings with consistent reference:')
