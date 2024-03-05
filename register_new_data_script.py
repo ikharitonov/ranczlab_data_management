@@ -3,22 +3,7 @@ import os
 import numpy as np
 import pandas as pd
 from pathlib import Path
-from mysql_functions import get_input_sql_credentials, get_npx_data_table, add_recordings_to_database
-
-def ask_yes_no(input_str):
-    correctly_answered = False
-    while not correctly_answered:
-        user_input = input(f'{input_str} [answer y/n]: ')
-        if user_input not in ['y', 'Y', 'yes', 'YES', 'n', 'N', 'no', 'NO']:
-            print('Invalid character entered. Try again.')
-        else:
-            if user_input in ['y', 'Y', 'yes', 'YES']:
-                return True
-            else:
-                return False
-
-def read_local_reference_csv(path):
-    return pd.read_csv(path/'db_conf.csv')
+from mysql_functions import get_input_sql_credentials, get_npx_data_table, ask_yes_no, scan_directory, check_local_remote_consistency, add_recordings_to_database
 
 def parse_recording_folder_name(path):
     animal_id = path.parts[-1].split('_')[0]
@@ -27,7 +12,8 @@ def parse_recording_folder_name(path):
     time = f'{time[0:2]}:{time[2:4]}:{time[4:]}'
     return animal_id, date, time
 
-data_directory = Path.home() / 'RANCZLAB-NAS/data/onix'
+data_directory = Path.home() / 'RANCZLAB-NAS/data/ONIX'
+print("<<<DATA REGISTRATION SCRIPT>>>")
 
 # Get credentials and validate them
 hostname, user, pwd = get_input_sql_credentials()
@@ -40,47 +26,10 @@ while not correct_login:
         print(f'Login failed with error: {str(e)}\nPlease try again:')
 
 # Scan the directory
-local_unreferenced_folders = []
-local_referenced_folders = []
-for folder in os.listdir(data_directory):
-    if 'db_conf.csv' not in os.listdir(data_directory/folder):
-        local_unreferenced_folders.append(data_directory/folder)
-    else:
-        local_referenced_folders.append(data_directory/folder)
+local_referenced_folders, local_unreferenced_folders = scan_directory(data_directory)
 
-print(f"Scanned '{data_directory}' data directory. Found {len(local_referenced_folders)} SQL database referenced and {len(local_unreferenced_folders)} non-referenced folders.")
-if ask_yes_no('List them?'):
-    print('Referenced folders:')
-    print(*local_referenced_folders,sep='\n')
-    print('Unreferenced folders:')
-    print(*local_unreferenced_folders,sep='\n')
-
-if ask_yes_no('\nCheck if all locally referenced folders exist in the database?'):
-    db_df = get_npx_data_table(hostname, user, pwd)
-    db_referenced_folders = []
-    db_unreferenced_folders = []
-    db_problem_folders = []
-
-    # Check consistency by recording_id
-    for folder_path in local_referenced_folders:
-        csv_df = read_local_reference_csv(folder_path)
-        local_recording_id = csv_df['recording_id'].item()
-        if len(db_df[db_df['recording_id']==local_recording_id]) == 1:
-            db_referenced_folders.append(folder_path)
-        elif len(db_df[db_df['recording_id']==local_recording_id]) == 0:
-            db_unreferenced_folders.append(folder_path)
-        else:
-            db_problem_folders.append(folder_path)
-
-    print(f"Checked consistency of locally referenced data folders (recordings) with the SQL database. Found {len(db_referenced_folders)} recordings referenced both locally and in the database; {len(db_unreferenced_folders)} referenced locally but not in the database; {len(db_problem_folders)} recordings with potential duplicate references in the database.")
-
-    if ask_yes_no('List them?'):
-        print('Recordings with consistent reference:')
-        print(*db_referenced_folders,sep='\n')
-        print('Recordings with inconsistent reference:')
-        print(*db_unreferenced_folders,sep='\n')
-        print('Recordings with possible duplicate reference:')
-        print(*db_problem_folders,sep='\n')
+# Checking if all locally referenced folders exist in the database
+check_local_remote_consistency(hostname, user, pwd, local_referenced_folders)
 
 if ask_yes_no('\nAdd local unreferenced recordings to the SQL database?'):
     # Get the last recording_id from the database
