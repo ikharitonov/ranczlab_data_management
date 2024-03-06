@@ -38,7 +38,7 @@ if ask_yes_no('\nAdd local unreferenced recordings to the SQL database?'):
     if len(all_recording_ids)==0:
         last_recording_id = -1
     else:
-        last_recording_id = all_recording_ids[-1]
+        last_recording_id = int(all_recording_ids[-1])
 
     query_values = []
 
