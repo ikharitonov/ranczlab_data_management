@@ -4,6 +4,11 @@ import os
 from pathlib import Path
 from distutils.dir_util import copy_tree
 
+def update_local_information(path):
+    csv_df = read_local_reference_csv(path)
+    csv_df["transferred_to_NAS"] = 1
+    csv_df.to_csv(path/"db_conf.csv")
+
 data_directory = Path.home() / 'RANCZLAB-NAS/data/ONIX'
 NAS_path = Path.home() / 'RANCZLAB-NAS/data/ONIX'
 print("<<<DATA TRANSFER SCRIPT>>>")
@@ -32,9 +37,9 @@ local_referenced_transferred_folders = []
 local_referenced_untransferred_folders = []
 for folder_path in local_referenced_folders:
     csv_df = read_local_reference_csv(folder_path)
-    if csv_df["transferred_to_NAS"] == 0:
+    if (csv_df["transferred_to_NAS"] == 0).item():
         local_referenced_untransferred_folders.append(folder_path)
-    elif csv_df["transferred_to_NAS"] == 1:
+    elif (csv_df["transferred_to_NAS"] == 1).item():
         local_referenced_transferred_folders.append(folder_path)
 print(f"Found {len(local_referenced_transferred_folders)} transferred directories and {len(local_referenced_untransferred_folders)} untransferred directories.")
 if ask_yes_no('List them?'):
@@ -44,38 +49,38 @@ if ask_yes_no('List them?'):
     print(*local_referenced_untransferred_folders,sep='\n')
 
 
-if ask_yes_no("Proceed with the transfer of found directories?"):
-    if ask_yes_no("Transfer all together [answer 'y'] or one by one [answer 'n']?"):
-        try:
+if len(local_referenced_untransferred_folders) != 0:
+    if ask_yes_no("\nProceed with the transfer of found directories?"):
+        if ask_yes_no("Transfer all together [answer 'y'] or one by one [answer 'n']?"):
+            try:
+                for folder_path in local_referenced_untransferred_folders:
+                    copy_tree(str(folder_path), str(Path(NAS_path) / Path(folder_path).name))
+                    print(f"Finished transfer of: {folder_path}")
+            except Exception as e:
+                print(f"Transfer failed with error: {str(e)}")
+        else:
             for folder_path in local_referenced_untransferred_folders:
-                copy_tree(folder_path, NAS_path / Path(folder_path).name)
-            print("Successful transfer.")
-        except Exception as e:
-            print(f"Transfer failed with error: {str(e)}")
-    else:
-        for folder_path in local_referenced_untransferred_folders:
-            if ask_yes_no(f"Transfer {folder_path}?"):
-                try:
-                    copy_tree(folder_path, NAS_path / Path(folder_path).name)
-                except Exception as e:
-                    print(f"Transfer failed with error: {str(e)}")
+                if ask_yes_no(f"Transfer {folder_path} ?"):
+                    try:
+                        copy_tree(str(folder_path), str(Path(NAS_path) / Path(folder_path).name))
+                    except Exception as e:
+                        print(f"Transfer failed with error: {str(e)}")
         print("All directories transferred successfully.")
 
 
-# Update the "transferred_to_NAS" field for local references
-for folder_path in local_referenced_untransferred_folders:
-    csv_df = read_local_reference_csv(folder_path)
-    csv_df["transferred_to_NAS"] = 1
-    csv_df.to_csv(folder_path/"db_conf.csv")
-print("Local information updated for transferred directories.")
-        
-# Update the "transferred_to_NAS" field for database references
-query_values = []
-for folder_path in local_referenced_untransferred_folders:
-    csv_df = read_local_reference_csv(folder_path)
-    query_values.append((csv_df["transferred_to_NAS"], csv_df["recording_id"]))
-try:
-    update_recordings_in_database(hostname, user, pwd, update_column_name="transferred_to_NAS", where_column_name="recording_id", query_values=query_values)
-    print("Database information updated for transferred directories.")
-except Exception as e:
-    print(f"Database information update failed with error: {str(e)}")
+        # Update the "transferred_to_NAS" field for local references
+        for folder_path in local_referenced_untransferred_folders:
+            update_local_information(folder_path)
+            update_local_information(Path(NAS_path) / Path(folder_path).name)
+        print("Local information updated for transferred directories.")
+                
+        # Update the "transferred_to_NAS" field for database references
+        query_values = []
+        for folder_path in local_referenced_untransferred_folders:
+            csv_df = read_local_reference_csv(folder_path)
+            query_values.append((csv_df["transferred_to_NAS"].item(), csv_df["recording_id"].item()))
+        try:
+            update_recordings_in_database(hostname, user, pwd, update_column_name="transferred_to_NAS", where_column_name="recording_id", query_values=query_values)
+            print("Database information updated for transferred directories.")
+        except Exception as e:
+            print(f"Database information update failed with error: {str(e)}")
