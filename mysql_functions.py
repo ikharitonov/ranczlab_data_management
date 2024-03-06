@@ -99,7 +99,7 @@ def update_recordings_in_database(hostname, user, pwd, update_column_name, where
     # update_column_name -> the field to be update in the database
     # where_column_name -> the field used to select specific rows from the database which a value is provided for
 
-    query = "UPDATE RPM_NPX_DB SET " + update_column_name + " = %s WHERE " + where_column_name + " = %s"
+    query = "UPDATE NPX_Data SET " + update_column_name + " = %s WHERE " + where_column_name + " = %s"
 
     if len(query_values)==0:
         print('No information passed for database update request. Skipping connection to the database.')

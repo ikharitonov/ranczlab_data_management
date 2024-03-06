@@ -51,10 +51,12 @@ if ask_yes_no('List them?'):
 
 if len(local_referenced_untransferred_folders) != 0:
     if ask_yes_no("\nProceed with the transfer of found directories?"):
+        actually_transferred_folders = []
         if ask_yes_no("Transfer all together [answer 'y'] or one by one [answer 'n']?"):
             try:
                 for folder_path in local_referenced_untransferred_folders:
                     copy_tree(str(folder_path), str(Path(NAS_path) / Path(folder_path).name))
+                    actually_transferred_folders.append(folder_path)
                     print(f"Finished transfer of: {folder_path}")
             except Exception as e:
                 print(f"Transfer failed with error: {str(e)}")
@@ -63,20 +65,21 @@ if len(local_referenced_untransferred_folders) != 0:
                 if ask_yes_no(f"Transfer {folder_path} ?"):
                     try:
                         copy_tree(str(folder_path), str(Path(NAS_path) / Path(folder_path).name))
+                        actually_transferred_folders.append(folder_path)
                     except Exception as e:
                         print(f"Transfer failed with error: {str(e)}")
         print("All directories transferred successfully.")
 
 
         # Update the "transferred_to_NAS" field for local references
-        for folder_path in local_referenced_untransferred_folders:
+        for folder_path in actually_transferred_folders:
             update_local_information(folder_path)
             update_local_information(Path(NAS_path) / Path(folder_path).name)
         print("Local information updated for transferred directories.")
                 
         # Update the "transferred_to_NAS" field for database references
         query_values = []
-        for folder_path in local_referenced_untransferred_folders:
+        for folder_path in actually_transferred_folders:
             csv_df = read_local_reference_csv(folder_path)
             query_values.append((csv_df["transferred_to_NAS"].item(), csv_df["recording_id"].item()))
         try:
